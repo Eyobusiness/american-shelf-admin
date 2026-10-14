@@ -1,0 +1,1235 @@
+<?php
+
+namespace App\Services\Documentation;
+
+class OpenApiSpecificationBuilder
+{
+    /**
+     * Build the complete OpenAPI 3.0.3 specification array.
+     */
+    public function build(): array
+    {
+        return [
+            'openapi' => '3.0.3',
+            'info' => [
+                'title' => 'American Shelf Abobo — API Documentation & DTOs',
+                'description' => "API REST SaaS multi-tenant pour la gestion de bibliothèque du projet American Shelf Abobo.\n\n"
+                    . "- **Version API** : /api/v1\n"
+                    . "- **Authentification** : JWT Bearer Token (`Authorization: Bearer <token>`)\n"
+                    . "- **Multi-Tenant** : Isolation automatique par `site_id`\n"
+                    . "- **TypeScript DTOs** : Disponibles dans `/docs/american-shelf.dto.ts` pour le frontend Angular.",
+                'version' => '1.0.0',
+                'contact' => [
+                    'name' => 'Support Technique American Shelf',
+                    'email' => 'contact@americanshelf.ci',
+                ],
+            ],
+            'servers' => [
+                [
+                    'url' => '/api/v1',
+                    'description' => 'Serveur Local / Relatif (Recommandé)',
+                ],
+                [
+                    'url' => 'http://127.0.0.1:8000/api/v1',
+                    'description' => 'Serveur de Développement Local',
+                ],
+            ],
+            'tags' => [
+                ['name' => 'Diagnostic & Santé', 'description' => 'Vérification de connectivité et santé'],
+                ['name' => 'Auth - Administration', 'description' => 'Authentification JWT des gestionnaires'],
+                ['name' => 'Auth - Usager', 'description' => 'Authentification JWT des usagers et adhérents'],
+                ['name' => 'Sites (Tenants)', 'description' => 'Gestion multi-tenant des sites de bibliothèque'],
+                ['name' => 'Catégories Usagers', 'description' => 'Typologie des adhérents (Étudiant, Pro, etc.)'],
+                ['name' => 'Catégories Livres', 'description' => 'Classification thématique du fonds'],
+                ['name' => 'Configuration', 'description' => 'Paramétrage des règles de prêt et quotas du site'],
+                ['name' => 'Menus & Navigation', 'description' => 'Structure hiérarchique des menus applicatifs'],
+                ['name' => 'Permissions', 'description' => 'Catalogue des habilitations granulaires du système'],
+                ['name' => 'Rôles', 'description' => 'Groupes de privilèges et synchronisation des droits'],
+                ['name' => 'Utilisateurs', 'description' => 'Comptes administratifs de la bibliothèque'],
+                ['name' => 'Acquisitions', 'description' => 'Entrées documentaires (Achats et Dons)'],
+                ['name' => 'Livres', 'description' => 'Catalogue bibliographique des ouvrages'],
+                ['name' => 'Exemplaires', 'description' => 'Inventaire physique et gestion des codes barres'],
+                ['name' => 'Usagers', 'description' => 'Registre global des personnes physiques'],
+                ['name' => 'Usager-Sites (Adhésions)', 'description' => 'Rattachement multi-tenant et cartes de lecteur'],
+                ['name' => 'Présences', 'description' => 'Pointage des entrées/sorties en salle de lecture'],
+                ['name' => 'Opérations (Prêts & Consultations)', 'description' => 'Flux de circulation et retours'],
+                ['name' => 'Réservations', 'description' => 'Réservations préalables d\'ouvrages'],
+                ['name' => 'Notifications', 'description' => 'Alertes de retards et confirmations'],
+                ['name' => 'Dashboard & Statistiques', 'description' => 'Métriques et indicateurs clés temps réel'],
+                ['name' => 'Journal d\'Activités', 'description' => 'Piste d\'audit immuable des actions'],
+                ['name' => 'Sauvegardes', 'description' => 'Points de sauvegarde du tenant'],
+            ],
+            'components' => [
+                'securitySchemes' => [
+                    'bearerAuth' => [
+                        'type' => 'http',
+                        'scheme' => 'bearer',
+                        'bearerFormat' => 'JWT',
+                        'description' => 'Entrez votre token JWT généré via /auth/admin/login ou /auth/usager/login',
+                    ],
+                ],
+                'schemas' => $this->getSchemas(),
+            ],
+            'security' => [
+                [
+                    'bearerAuth' => [],
+                ],
+            ],
+            'paths' => $this->getPaths(),
+        ];
+    }
+
+    /**
+     * Definition of all DTO schemas for Angular and Swagger.
+     */
+    private function getSchemas(): array
+    {
+        return [
+            // Generic Responses
+            'ApiResponse' => [
+                'type' => 'object',
+                'properties' => [
+                    'success' => ['type' => 'boolean', 'example' => true],
+                    'message' => ['type' => 'string', 'example' => 'Opération exécutée avec succès.'],
+                    'data' => ['type' => 'object'],
+                ],
+            ],
+            'PaginationMeta' => [
+                'type' => 'object',
+                'properties' => [
+                    'current_page' => ['type' => 'integer', 'example' => 1],
+                    'from' => ['type' => 'integer', 'example' => 1],
+                    'last_page' => ['type' => 'integer', 'example' => 3],
+                    'per_page' => ['type' => 'integer', 'example' => 15],
+                    'to' => ['type' => 'integer', 'example' => 15],
+                    'total' => ['type' => 'integer', 'example' => 42],
+                ],
+            ],
+            'PaginatedResponse' => [
+                'type' => 'object',
+                'properties' => [
+                    'success' => ['type' => 'boolean', 'example' => true],
+                    'message' => ['type' => 'string', 'example' => 'Liste récupérée avec succès.'],
+                    'data' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'object'],
+                    ],
+                    'meta' => ['$ref' => '#/components/schemas/PaginationMeta'],
+                ],
+            ],
+            'ApiErrorResponse' => [
+                'type' => 'object',
+                'properties' => [
+                    'success' => ['type' => 'boolean', 'example' => false],
+                    'message' => ['type' => 'string', 'example' => 'Données non valides.'],
+                    'errors' => [
+                        'type' => 'object',
+                        'additionalProperties' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                        ],
+                    ],
+                ],
+            ],
+
+            // Auth
+            'LoginRequest' => [
+                'type' => 'object',
+                'required' => ['email', 'mot_de_passe'],
+                'properties' => [
+                    'email' => ['type' => 'string', 'format' => 'email', 'example' => 'admin@americanshelf.ci'],
+                    'mot_de_passe' => ['type' => 'string', 'format' => 'password', 'example' => 'Password123!'],
+                ],
+            ],
+            'AuthResponse' => [
+                'type' => 'object',
+                'properties' => [
+                    'access_token' => ['type' => 'string', 'example' => 'eyJ0eXAiOiJKV1QiLCJhbGciOi...'],
+                    'token_type' => ['type' => 'string', 'example' => 'bearer'],
+                    'expires_in' => ['type' => 'integer', 'example' => 3600],
+                    'user' => ['type' => 'object'],
+                ],
+            ],
+
+            // Site
+            'Site' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'ASA'],
+                    'nom' => ['type' => 'string', 'example' => 'American Shelf Abobo'],
+                    'logo' => ['type' => 'string', 'nullable' => true, 'example' => 'logos/logo_asa.png'],
+                    'logo_url' => ['type' => 'string', 'nullable' => true, 'example' => 'http://127.0.0.1:8000/storage/logos/logo_asa.png'],
+                    'adresse' => ['type' => 'string', 'example' => 'Abobo Université'],
+                    'telephone' => ['type' => 'string', 'example' => '+225 0102030405'],
+                    'email' => ['type' => 'string', 'example' => 'contact@americanshelf.ci'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF'], 'example' => 'ACTIF'],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time'],
+                    'updated_at' => ['type' => 'string', 'format' => 'date-time'],
+                ],
+            ],
+            'SiteRequest' => [
+                'type' => 'object',
+                'required' => ['code', 'nom'],
+                'properties' => [
+                    'code' => ['type' => 'string', 'example' => 'ASA'],
+                    'nom' => ['type' => 'string', 'example' => 'American Shelf Abobo'],
+                    'logo' => ['type' => 'string', 'nullable' => true, 'example' => 'logos/logo_asa.png'],
+                    'adresse' => ['type' => 'string', 'example' => 'Abobo Université'],
+                    'telephone' => ['type' => 'string', 'example' => '+225 0102030405'],
+                    'email' => ['type' => 'string', 'example' => 'contact@americanshelf.ci'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF'], 'example' => 'ACTIF'],
+                ],
+            ],
+
+            // CategorieUsager & CategorieLivre
+            'CategorieUsager' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'ETU'],
+                    'libelle' => ['type' => 'string', 'example' => 'Étudiant'],
+                    'description' => ['type' => 'string', 'example' => 'Étudiant universitaire'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF'], 'example' => 'ACTIF'],
+                ],
+            ],
+            'CategorieUsagerRequest' => [
+                'type' => 'object',
+                'required' => ['code', 'libelle'],
+                'properties' => [
+                    'code' => ['type' => 'string', 'example' => 'ETU'],
+                    'libelle' => ['type' => 'string', 'example' => 'Étudiant'],
+                    'description' => ['type' => 'string'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                ],
+            ],
+            'CategorieLivre' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'INFO'],
+                    'libelle' => ['type' => 'string', 'example' => 'Informatique & IA'],
+                    'description' => ['type' => 'string'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF'], 'example' => 'ACTIF'],
+                ],
+            ],
+            'CategorieLivreRequest' => [
+                'type' => 'object',
+                'required' => ['code', 'libelle'],
+                'properties' => [
+                    'code' => ['type' => 'string', 'example' => 'INFO'],
+                    'libelle' => ['type' => 'string', 'example' => 'Informatique & IA'],
+                    'description' => ['type' => 'string'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                ],
+            ],
+
+            // Configuration
+            'Configuration' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'duree_emprunt_jours' => ['type' => 'integer', 'example' => 14],
+                    'nombre_max_emprunts' => ['type' => 'integer', 'example' => 3],
+                    'duree_retard_tolerance_jours' => ['type' => 'integer', 'example' => 2],
+                    'nombre_max_reservations' => ['type' => 'integer', 'example' => 2],
+                    'duree_validite_reservation_jours' => ['type' => 'integer', 'example' => 3],
+                    'montant_cotisation_annuelle' => ['type' => 'number', 'example' => 5000],
+                    'penalite_par_jour_retard' => ['type' => 'number', 'example' => 200],
+                ],
+            ],
+            'ConfigurationRequest' => [
+                'type' => 'object',
+                'required' => ['duree_emprunt_jours', 'nombre_max_emprunts', 'nombre_max_reservations', 'duree_validite_reservation_jours'],
+                'properties' => [
+                    'duree_emprunt_jours' => ['type' => 'integer', 'example' => 14],
+                    'nombre_max_emprunts' => ['type' => 'integer', 'example' => 3],
+                    'duree_retard_tolerance_jours' => ['type' => 'integer', 'example' => 2],
+                    'nombre_max_reservations' => ['type' => 'integer', 'example' => 2],
+                    'duree_validite_reservation_jours' => ['type' => 'integer', 'example' => 3],
+                    'montant_cotisation_annuelle' => ['type' => 'number', 'example' => 5000],
+                    'penalite_par_jour_retard' => ['type' => 'number', 'example' => 200],
+                ],
+            ],
+
+            // Menus
+            'Menu' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'CATALOGUE'],
+                    'libelle' => ['type' => 'string', 'example' => 'Catalogue'],
+                    'icon' => ['type' => 'string', 'example' => 'book'],
+                    'path' => ['type' => 'string', 'example' => '/catalogue'],
+                    'order' => ['type' => 'integer', 'example' => 1],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                ],
+            ],
+            'MenuRequest' => [
+                'type' => 'object',
+                'required' => ['code', 'libelle', 'path'],
+                'properties' => [
+                    'code' => ['type' => 'string', 'example' => 'CATALOGUE'],
+                    'libelle' => ['type' => 'string', 'example' => 'Catalogue'],
+                    'icon' => ['type' => 'string', 'example' => 'book'],
+                    'path' => ['type' => 'string', 'example' => '/catalogue'],
+                    'order' => ['type' => 'integer', 'example' => 1],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                ],
+            ],
+            'SousMenu' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'menu_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'LIVRES'],
+                    'libelle' => ['type' => 'string', 'example' => 'Livres'],
+                    'path' => ['type' => 'string', 'example' => '/catalogue/livres'],
+                    'order' => ['type' => 'integer', 'example' => 1],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                ],
+            ],
+            'SousMenuRequest' => [
+                'type' => 'object',
+                'required' => ['menu_id', 'code', 'libelle', 'path'],
+                'properties' => [
+                    'menu_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'LIVRES'],
+                    'libelle' => ['type' => 'string', 'example' => 'Livres'],
+                    'icon' => ['type' => 'string'],
+                    'path' => ['type' => 'string', 'example' => '/catalogue/livres'],
+                    'order' => ['type' => 'integer', 'example' => 1],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                ],
+            ],
+
+            // Permissions & Roles
+            'Permission' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'LIVRE_READ'],
+                    'libelle' => ['type' => 'string', 'example' => 'Consulter les livres'],
+                    'module' => ['type' => 'string', 'example' => 'LIVRE'],
+                    'action' => ['type' => 'string', 'example' => 'READ'],
+                    'description' => ['type' => 'string'],
+                ],
+            ],
+            'Role' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'ADMINISTRATEUR'],
+                    'libelle' => ['type' => 'string', 'example' => 'Administrateur'],
+                    'description' => ['type' => 'string'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                    'permissions' => [
+                        'type' => 'array',
+                        'items' => ['$ref' => '#/components/schemas/Permission'],
+                    ],
+                ],
+            ],
+            'RoleRequest' => [
+                'type' => 'object',
+                'required' => ['code', 'libelle'],
+                'properties' => [
+                    'code' => ['type' => 'string', 'example' => 'BIBLIOTHECAIRE'],
+                    'libelle' => ['type' => 'string', 'example' => 'Bibliothécaire'],
+                    'description' => ['type' => 'string'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                    'permission_ids' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string', 'format' => 'uuid'],
+                    ],
+                ],
+            ],
+            'RoleSyncPermissionsRequest' => [
+                'type' => 'object',
+                'required' => ['permissions'],
+                'properties' => [
+                    'permissions' => [
+                        'type' => 'array',
+                        'items' => ['type' => 'string', 'format' => 'uuid'],
+                        'example' => ['c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    ],
+                ],
+            ],
+
+            // Utilisateur
+            'Utilisateur' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'nom' => ['type' => 'string', 'example' => 'KOUASSI'],
+                    'prenom' => ['type' => 'string', 'example' => 'Jean'],
+                    'email' => ['type' => 'string', 'example' => 'admin@americanshelf.ci'],
+                    'role_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'role' => ['$ref' => '#/components/schemas/Role'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                    'derniere_connexion' => ['type' => 'string', 'format' => 'date-time'],
+                ],
+            ],
+            'UtilisateurCreateRequest' => [
+                'type' => 'object',
+                'required' => ['nom', 'prenom', 'email', 'mot_de_passe', 'role_id'],
+                'properties' => [
+                    'nom' => ['type' => 'string', 'example' => 'KOUASSI'],
+                    'prenom' => ['type' => 'string', 'example' => 'Jean'],
+                    'email' => ['type' => 'string', 'example' => 'jean@americanshelf.ci'],
+                    'mot_de_passe' => ['type' => 'string', 'example' => 'Password123!'],
+                    'mot_de_passe_confirmation' => ['type' => 'string', 'example' => 'Password123!'],
+                    'role_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                ],
+            ],
+
+            // Acquisitions
+            'Acquisition' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'fournisseur_id' => ['type' => 'string', 'format' => 'uuid', 'nullable' => true, 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'type' => ['type' => 'string', 'enum' => ['ACHAT', 'DON'], 'example' => 'ACHAT'],
+                    'provenance' => ['type' => 'string', 'example' => 'Librairie de France'],
+                    'cout' => ['type' => 'number', 'example' => 250000],
+                    'quantite' => ['type' => 'integer', 'example' => 20],
+                    'date_acquisition' => ['type' => 'string', 'format' => 'date', 'example' => '2026-10-01'],
+                    'etat' => ['type' => 'string', 'enum' => ['COMMANDE', 'RECU', 'TRAITE', 'ANNULE'], 'example' => 'RECU'],
+                ],
+            ],
+            'AcquisitionRequest' => [
+                'type' => 'object',
+                'required' => ['type', 'cout', 'quantite', 'date_acquisition'],
+                'properties' => [
+                    'type' => ['type' => 'string', 'enum' => ['ACHAT', 'DON']],
+                    'provenance' => ['type' => 'string'],
+                    'fournisseur_id' => ['type' => 'string', 'format' => 'uuid', 'nullable' => true],
+                    'cout' => ['type' => 'number', 'example' => 150000],
+                    'quantite' => ['type' => 'integer', 'example' => 10],
+                    'date_acquisition' => ['type' => 'string', 'format' => 'date'],
+                    'donateur' => ['type' => 'string'],
+                    'etat' => ['type' => 'string', 'enum' => ['COMMANDE', 'RECU', 'TRAITE', 'ANNULE']],
+                    'observations' => ['type' => 'string'],
+                ],
+            ],
+
+            // Livre & Exemplaire
+            'Livre' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'categorie_livre_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'titre' => ['type' => 'string', 'example' => 'Clean Code'],
+                    'isbn' => ['type' => 'string', 'example' => '978-0132350884'],
+                    'editeur' => ['type' => 'string', 'example' => 'Prentice Hall'],
+                    'annee_publication' => ['type' => 'integer', 'example' => 2008],
+                    'auteur' => ['type' => 'string', 'example' => 'Robert C. Martin'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                    'nombre_exemplaires' => ['type' => 'integer', 'example' => 3],
+                    'exemplaires_disponibles_count' => ['type' => 'integer', 'example' => 2],
+                ],
+            ],
+            'LivreRequest' => [
+                'type' => 'object',
+                'required' => ['categorie_livre_id', 'titre', 'auteur'],
+                'properties' => [
+                    'categorie_livre_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'titre' => ['type' => 'string', 'example' => 'Clean Code'],
+                    'isbn' => ['type' => 'string', 'example' => '978-0132350884'],
+                    'editeur' => ['type' => 'string', 'example' => 'Prentice Hall'],
+                    'annee_publication' => ['type' => 'integer', 'example' => 2008],
+                    'auteur' => ['type' => 'string', 'example' => 'Robert C. Martin'],
+                    'langue' => ['type' => 'string', 'example' => 'Anglais'],
+                    'resume' => ['type' => 'string'],
+                    'nombre_pages' => ['type' => 'integer', 'example' => 464],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'INACTIF']],
+                ],
+            ],
+            'Exemplaire' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'livre_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'ASA-DEV-001'],
+                    'statut' => ['type' => 'string', 'enum' => ['DISPONIBLE', 'EMPRUNTE', 'EN_CONSULTATION', 'INDISPONIBLE', 'PERDU'], 'example' => 'DISPONIBLE'],
+                    'etat' => ['type' => 'string', 'enum' => ['NEUF', 'BON', 'MOYEN', 'MAUVAIS', 'DEGRADE'], 'example' => 'BON'],
+                    'emplacement' => ['type' => 'string', 'example' => 'Rayon A-1'],
+                ],
+            ],
+            'ExemplaireRequest' => [
+                'type' => 'object',
+                'required' => ['livre_id', 'code'],
+                'properties' => [
+                    'livre_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'code' => ['type' => 'string', 'example' => 'ASA-DEV-001'],
+                    'statut' => ['type' => 'string', 'enum' => ['DISPONIBLE', 'EMPRUNTE', 'EN_CONSULTATION', 'INDISPONIBLE', 'PERDU']],
+                    'etat' => ['type' => 'string', 'enum' => ['NEUF', 'BON', 'MOYEN', 'MAUVAIS', 'DEGRADE']],
+                    'emplacement' => ['type' => 'string', 'example' => 'Rayon A-1'],
+                ],
+            ],
+            'ExemplaireBulkRequest' => [
+                'type' => 'object',
+                'required' => ['quantite'],
+                'properties' => [
+                    'quantite' => ['type' => 'integer', 'example' => 5],
+                    'livre_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'prefixe' => ['type' => 'string', 'example' => 'ASA-CC'],
+                    'etat' => ['type' => 'string', 'enum' => ['NEUF', 'BON', 'MOYEN', 'MAUVAIS', 'DEGRADE'], 'example' => 'NEUF'],
+                    'emplacement' => ['type' => 'string', 'example' => 'Rayon Informatique'],
+                ],
+            ],
+
+            // Usager & UsagerSite
+            'Usager' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'nom' => ['type' => 'string', 'example' => 'KONE'],
+                    'prenom' => ['type' => 'string', 'example' => 'Bakary'],
+                    'email' => ['type' => 'string', 'example' => 'bakary@example.com'],
+                    'telephone' => ['type' => 'string', 'example' => '+225 0708091011'],
+                    'adresse' => ['type' => 'string', 'example' => 'Abobo Dokui'],
+                ],
+            ],
+            'UsagerCreateRequest' => [
+                'type' => 'object',
+                'required' => ['nom', 'prenom', 'email', 'categorie_usager_id'],
+                'properties' => [
+                    'nom' => ['type' => 'string', 'example' => 'KONE'],
+                    'prenom' => ['type' => 'string', 'example' => 'Bakary'],
+                    'email' => ['type' => 'string', 'example' => 'bakary@example.com'],
+                    'telephone' => ['type' => 'string', 'example' => '+225 0708091011'],
+                    'adresse' => ['type' => 'string', 'example' => 'Abobo Dokui'],
+                    'date_naissance' => ['type' => 'string', 'format' => 'date', 'example' => '2001-05-12'],
+                    'categorie_usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'type' => ['type' => 'string', 'enum' => ['USAGER', 'ADHERENT'], 'example' => 'ADHERENT'],
+                    'remarques' => ['type' => 'string'],
+                ],
+            ],
+            'UsagerSite' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'categorie_usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'numero_adherent' => ['type' => 'string', 'example' => 'ASA-2026-0001'],
+                    'type' => ['type' => 'string', 'enum' => ['USAGER', 'ADHERENT'], 'example' => 'ADHERENT'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'SUSPENDU', 'EXPIRE'], 'example' => 'ACTIF'],
+                    'date_inscription' => ['type' => 'string', 'format' => 'date'],
+                    'date_expiration' => ['type' => 'string', 'format' => 'date'],
+                ],
+            ],
+            'UsagerSiteRequest' => [
+                'type' => 'object',
+                'required' => ['usager_id', 'categorie_usager_id'],
+                'properties' => [
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'categorie_usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'type' => ['type' => 'string', 'enum' => ['USAGER', 'ADHERENT'], 'example' => 'ADHERENT'],
+                    'date_inscription' => ['type' => 'string', 'format' => 'date'],
+                    'date_expiration' => ['type' => 'string', 'format' => 'date'],
+                    'statut' => ['type' => 'string', 'enum' => ['ACTIF', 'SUSPENDU', 'EXPIRE']],
+                    'remarques' => ['type' => 'string'],
+                ],
+            ],
+
+            // Présence
+            'Presence' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'nullable' => true, 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'date_presence' => ['type' => 'string', 'format' => 'date', 'example' => '2026-10-07'],
+                    'heure_arrivee' => ['type' => 'string', 'example' => '09:30:00'],
+                    'heure_depart' => ['type' => 'string', 'example' => '12:00:00'],
+                    'motif' => ['type' => 'string', 'example' => 'Étude personnelle'],
+                ],
+            ],
+            'PresenceRequest' => [
+                'type' => 'object',
+                'required' => ['heure_arrivee'],
+                'properties' => [
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'nullable' => true, 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'date_presence' => ['type' => 'string', 'format' => 'date', 'example' => '2026-10-07'],
+                    'heure_arrivee' => ['type' => 'string', 'example' => '09:30:00'],
+                    'heure_depart' => ['type' => 'string', 'example' => '12:00:00'],
+                    'motif' => ['type' => 'string', 'example' => 'Recherche documentaire'],
+                    'observations' => ['type' => 'string'],
+                ],
+            ],
+
+            // Opération
+            'Operation' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'exemplaire_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'type' => ['type' => 'string', 'enum' => ['EMPRUNT', 'CONSULTATION'], 'example' => 'EMPRUNT'],
+                    'statut' => ['type' => 'string', 'enum' => ['EN_COURS', 'RETOURNE', 'EN_RETARD', 'PERDU'], 'example' => 'EN_COURS'],
+                    'date_operation' => ['type' => 'string', 'format' => 'date', 'example' => '2026-10-01'],
+                    'date_retour_prevue' => ['type' => 'string', 'format' => 'date', 'example' => '2026-10-15'],
+                    'date_retour_effective' => ['type' => 'string', 'format' => 'date'],
+                    'jours_retard' => ['type' => 'integer', 'example' => 0],
+                    'montant_penalite' => ['type' => 'number', 'example' => 0],
+                ],
+            ],
+            'OperationCreateRequest' => [
+                'type' => 'object',
+                'required' => ['usager_id', 'exemplaire_id', 'type'],
+                'properties' => [
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'exemplaire_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'type' => ['type' => 'string', 'enum' => ['EMPRUNT', 'CONSULTATION'], 'example' => 'EMPRUNT'],
+                    'date_operation' => ['type' => 'string', 'format' => 'date'],
+                    'date_retour_prevue' => ['type' => 'string', 'format' => 'date'],
+                    'observations' => ['type' => 'string'],
+                ],
+            ],
+            'OperationRetourRequest' => [
+                'type' => 'object',
+                'required' => ['etat_retour'],
+                'properties' => [
+                    'date_retour_effective' => ['type' => 'string', 'format' => 'date'],
+                    'etat_retour' => ['type' => 'string', 'enum' => ['NEUF', 'BON', 'MOYEN', 'MAUVAIS', 'DEGRADE'], 'example' => 'BON'],
+                    'observations' => ['type' => 'string'],
+                    'penalite_payee' => ['type' => 'boolean', 'example' => true],
+                ],
+            ],
+
+            // Réservation
+            'Reservation' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'livre_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'statut' => ['type' => 'string', 'enum' => ['EN_ATTENTE', 'ACTIVE', 'EXPIREE', 'ANNULEE', 'HONOREE'], 'example' => 'ACTIVE'],
+                    'date_reservation' => ['type' => 'string', 'format' => 'date'],
+                    'date_expiration' => ['type' => 'string', 'format' => 'date'],
+                ],
+            ],
+            'ReservationRequest' => [
+                'type' => 'object',
+                'required' => ['usager_id', 'livre_id'],
+                'properties' => [
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'livre_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'date_reservation' => ['type' => 'string', 'format' => 'date'],
+                    'date_expiration' => ['type' => 'string', 'format' => 'date'],
+                ],
+            ],
+
+            // Notification
+            'Notification' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'type' => ['type' => 'string', 'enum' => ['RETARD', 'RAPPEL', 'DISPONIBILITE', 'EXPIRATION_ADHESION', 'AUTRE']],
+                    'statut' => ['type' => 'string', 'enum' => ['EN_ATTENTE', 'ENVOYE', 'ECHEC', 'LU']],
+                    'titre' => ['type' => 'string', 'example' => 'Rappel de retour de prêt'],
+                    'message' => ['type' => 'string', 'example' => 'Votre emprunt arrive à échéance.'],
+                ],
+            ],
+            'NotificationRequest' => [
+                'type' => 'object',
+                'required' => ['usager_id', 'type', 'titre', 'message'],
+                'properties' => [
+                    'usager_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'type' => ['type' => 'string', 'enum' => ['RETARD', 'RAPPEL', 'DISPONIBILITE', 'EXPIRATION_ADHESION', 'AUTRE']],
+                    'canal' => ['type' => 'string', 'enum' => ['DATABASE', 'EMAIL', 'SMS'], 'example' => 'EMAIL'],
+                    'titre' => ['type' => 'string', 'example' => 'Rappel de retour'],
+                    'message' => ['type' => 'string', 'example' => 'Merci de restituer votre ouvrage dans les 48 heures.'],
+                ],
+            ],
+
+            // Dashboard
+            'DashboardMetrics' => [
+                'type' => 'object',
+                'properties' => [
+                    'periode' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'date_debut' => ['type' => 'string', 'format' => 'date', 'example' => '2026-09-07'],
+                            'date_fin' => ['type' => 'string', 'format' => 'date', 'example' => '2026-10-07'],
+                        ],
+                    ],
+                    'documents' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'total_livres' => ['type' => 'integer', 'example' => 120],
+                            'total_exemplaires' => ['type' => 'integer', 'example' => 350],
+                            'exemplaires_disponibles' => ['type' => 'integer', 'example' => 280],
+                            'exemplaires_empruntes' => ['type' => 'integer', 'example' => 50],
+                            'exemplaires_en_consultation' => ['type' => 'integer', 'example' => 15],
+                            'exemplaires_indisponibles' => ['type' => 'integer', 'example' => 5],
+                        ],
+                    ],
+                    'usagers' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'total_usagers' => ['type' => 'integer', 'example' => 210],
+                            'adhesions_actives' => ['type' => 'integer', 'example' => 185],
+                            'adhesions_suspendues' => ['type' => 'integer', 'example' => 5],
+                            'adhesions_expirees' => ['type' => 'integer', 'example' => 20],
+                            'nouveaux_usagers_periode' => ['type' => 'integer', 'example' => 18],
+                        ],
+                    ],
+                    'activites' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'emprunts' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'du_jour' => ['type' => 'integer', 'example' => 4],
+                                    'de_la_periode' => ['type' => 'integer', 'example' => 64],
+                                    'en_cours' => ['type' => 'integer', 'example' => 50],
+                                    'retournes' => ['type' => 'integer', 'example' => 45],
+                                    'en_retard' => ['type' => 'integer', 'example' => 5],
+                                ],
+                            ],
+                            'consultations' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'du_jour' => ['type' => 'integer', 'example' => 8],
+                                    'de_la_periode' => ['type' => 'integer', 'example' => 112],
+                                    'en_cours' => ['type' => 'integer', 'example' => 15],
+                                    'terminees' => ['type' => 'integer', 'example' => 97],
+                                ],
+                            ],
+                            'reservations' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'actives' => ['type' => 'integer', 'example' => 8],
+                                    'en_attente' => ['type' => 'integer', 'example' => 2],
+                                    'expirees' => ['type' => 'integer', 'example' => 3],
+                                    'annulees' => ['type' => 'integer', 'example' => 1],
+                                    'honorees' => ['type' => 'integer', 'example' => 12],
+                                ],
+                            ],
+                            'presences' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'total_periode' => ['type' => 'integer', 'example' => 340],
+                                ],
+                            ],
+                        ],
+                    ],
+                    'top_livres' => [
+                        'type' => 'array',
+                        'items' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'livre_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                                'titre' => ['type' => 'string', 'example' => 'Clean Code'],
+                                'auteur' => ['type' => 'string', 'example' => 'Robert C. Martin'],
+                                'isbn' => ['type' => 'string', 'example' => '978-0132350884'],
+                                'nombre_emprunts' => ['type' => 'integer', 'example' => 23],
+                            ],
+                        ],
+                    ],
+                    'categories' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'livres_par_categorie' => ['type' => 'array', 'items' => ['type' => 'object']],
+                            'emprunts_par_categorie' => ['type' => 'array', 'items' => ['type' => 'object']],
+                        ],
+                    ],
+                ],
+            ],
+
+            // Journal
+            'JournalActivite' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'utilisateur_id' => ['type' => 'string', 'format' => 'uuid', 'nullable' => true, 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'action' => ['type' => 'string', 'example' => 'CREATE'],
+                    'module' => ['type' => 'string', 'example' => 'LIVRE'],
+                    'reference' => ['type' => 'string', 'example' => 'LIVRE-42'],
+                    'description' => ['type' => 'string', 'example' => 'Création du livre Clean Code'],
+                    'adresse_ip' => ['type' => 'string', 'example' => '127.0.0.1'],
+                    'created_at' => ['type' => 'string', 'format' => 'date-time'],
+                ],
+            ],
+
+            // Sauvegarde
+            'Sauvegarde' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'site_id' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3'],
+                    'nom_fichier' => ['type' => 'string', 'example' => 'backup_asa_20261007.sql.gz'],
+                    'chemin_fichier' => ['type' => 'string', 'example' => 'backups/backup_asa_20261007.sql.gz'],
+                    'taille_octets' => ['type' => 'integer', 'example' => 2048576],
+                    'taille_lisible' => ['type' => 'string', 'example' => '1.95 Mo'],
+                    'statut' => ['type' => 'string', 'enum' => ['REUSSIE', 'EN_COURS', 'ECHEC'], 'example' => 'REUSSIE'],
+                    'type' => ['type' => 'string', 'example' => 'DATABASE'],
+                    'date_sauvegarde' => ['type' => 'string', 'format' => 'date-time'],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Complete Paths map for all endpoints.
+     */
+    private function getPaths(): array
+    {
+        $paths = [];
+
+        // 1. Diagnostic
+        $paths['/health'] = [
+            'get' => [
+                'tags' => ['Diagnostic & Santé'],
+                'summary' => 'Vérification de santé de l\'API',
+                'security' => [],
+                'responses' => [
+                    '200' => ['description' => 'API saine et opérationnelle'],
+                ],
+            ],
+        ];
+
+        // 2. Auth Admin
+        $paths['/auth/admin/login'] = [
+            'post' => [
+                'tags' => ['Auth - Administration'],
+                'summary' => 'Connexion administrateur et obtention du JWT',
+                'security' => [],
+                'requestBody' => [
+                    'required' => true,
+                    'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/LoginRequest']]],
+                ],
+                'responses' => [
+                    '200' => ['description' => 'JWT généré avec succès', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/AuthResponse']]]],
+                    '401' => ['description' => 'Identifiants invalides'],
+                ],
+            ],
+        ];
+        $paths['/auth/admin/me'] = [
+            'get' => [
+                'tags' => ['Auth - Administration'],
+                'summary' => 'Profil de l\'administrateur connecté',
+                'responses' => ['200' => ['description' => 'Profil récupéré']],
+            ],
+        ];
+        $paths['/auth/admin/refresh'] = [
+            'post' => [
+                'tags' => ['Auth - Administration'],
+                'summary' => 'Rafraîchir le token JWT administrateur',
+                'responses' => ['200' => ['description' => 'Nouveau token généré']],
+            ],
+        ];
+        $paths['/auth/admin/logout'] = [
+            'post' => [
+                'tags' => ['Auth - Administration'],
+                'summary' => 'Déconnexion et invalidation du token JWT',
+                'responses' => ['200' => ['description' => 'Déconnecté avec succès']],
+            ],
+        ];
+
+        // 3. Auth Usager
+        $paths['/auth/usager/login'] = [
+            'post' => [
+                'tags' => ['Auth - Usager'],
+                'summary' => 'Connexion usager/adhérent',
+                'security' => [],
+                'requestBody' => [
+                    'required' => true,
+                    'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/LoginRequest']]],
+                ],
+                'responses' => [
+                    '200' => ['description' => 'Connexion réussie', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/AuthResponse']]]],
+                ],
+            ],
+        ];
+        $paths['/auth/usager/me'] = [
+            'get' => [
+                'tags' => ['Auth - Usager'],
+                'summary' => 'Profil de l\'usager connecté',
+                'responses' => ['200' => ['description' => 'Profil récupéré']],
+            ],
+        ];
+        $paths['/auth/usager/refresh'] = [
+            'post' => [
+                'tags' => ['Auth - Usager'],
+                'summary' => 'Rafraîchir le token usager',
+                'responses' => ['200' => ['description' => 'Nouveau token généré']],
+            ],
+        ];
+        $paths['/auth/usager/logout'] = [
+            'post' => [
+                'tags' => ['Auth - Usager'],
+                'summary' => 'Déconnexion usager',
+                'responses' => ['200' => ['description' => 'Déconnecté']],
+            ],
+        ];
+
+        // 4. Sites
+        $paths['/sites'] = [
+            'get' => [
+                'tags' => ['Sites (Tenants)'],
+                'summary' => 'Liste paginée des sites [SITE_READ]',
+                'responses' => ['200' => ['description' => 'Liste récupérée']],
+            ],
+            'post' => [
+                'tags' => ['Sites (Tenants)'],
+                'summary' => 'Création d\'un site [SITE_CREATE]',
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/SiteRequest']]]],
+                'responses' => ['201' => ['description' => 'Site créé']],
+            ],
+        ];
+        $paths['/sites/{id}'] = [
+            'get' => [
+                'tags' => ['Sites (Tenants)'],
+                'summary' => 'Détail d\'un site [SITE_READ]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => ['200' => ['description' => 'Détail site'], '404' => ['description' => 'Site introuvable']],
+            ],
+            'put' => [
+                'tags' => ['Sites (Tenants)'],
+                'summary' => 'Mise à jour d\'un site [SITE_UPDATE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/SiteRequest']]]],
+                'responses' => ['200' => ['description' => 'Site mis à jour']],
+            ],
+            'delete' => [
+                'tags' => ['Sites (Tenants)'],
+                'summary' => 'Suppression logique d\'un site [SITE_DELETE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => ['200' => ['description' => 'Site supprimé']],
+            ],
+        ];
+        $paths['/sites/{id}/restore'] = [
+            'post' => [
+                'tags' => ['Sites (Tenants)'],
+                'summary' => 'Restauration d\'un site supprimé [SITE_UPDATE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => ['200' => ['description' => 'Site restauré']],
+            ],
+        ];
+        $paths['/sites/{id}/logo'] = [
+            'post' => [
+                'tags' => ['Sites (Tenants)'],
+                'summary' => 'Upload et mise à jour du logo du site [SITE_UPDATE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'requestBody' => [
+                    'required' => true,
+                    'content' => [
+                        'multipart/form-data' => [
+                            'schema' => [
+                                'type' => 'object',
+                                'required' => ['logo'],
+                                'properties' => [
+                                    'logo' => [
+                                        'type' => 'string',
+                                        'format' => 'binary',
+                                        'description' => 'Fichier image du logo (jpeg, png, jpg, webp, svg - max 2 Mo)',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                'responses' => [
+                    '200' => ['description' => 'Logo mis à jour avec succès', 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Site']]]],
+                    '404' => ['description' => 'Site introuvable'],
+                    '422' => ['description' => 'Image invalide ou trop volumineuse'],
+                ],
+            ],
+        ];
+
+        // 5. Catégories Usagers
+        $this->addStandardCrudRoutes($paths, 'categories-usagers', 'Catégories Usagers', 'CategorieUsager', 'CATEGORIE_USAGER');
+
+        // 6. Catégories Livres
+        $this->addStandardCrudRoutes($paths, 'categories-livres', 'Catégories Livres', 'CategorieLivre', 'CATEGORIE_LIVRE');
+
+        // 7. Configuration
+        $paths['/configuration'] = [
+            'get' => [
+                'tags' => ['Configuration'],
+                'summary' => 'Récupérer la configuration du site [CONFIGURATION_READ]',
+                'responses' => ['200' => ['description' => 'Configuration']],
+            ],
+            'put' => [
+                'tags' => ['Configuration'],
+                'summary' => 'Mettre à jour la configuration du site [CONFIGURATION_UPDATE]',
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ConfigurationRequest']]]],
+                'responses' => ['200' => ['description' => 'Configuration sauvegardée']],
+            ],
+        ];
+
+        // 8. Menus & Sous-Menus
+        $this->addStandardCrudRoutes($paths, 'menus', 'Menus & Navigation', 'Menu', 'MENU');
+        $this->addStandardCrudRoutes($paths, 'sous-menus', 'Menus & Navigation', 'SousMenu', 'SOUS_MENU');
+
+        // 9. Permissions & Rôles
+        $paths['/permissions'] = [
+            'get' => [
+                'tags' => ['Permissions'],
+                'summary' => 'Liste des permissions système [PERMISSION_READ]',
+                'responses' => ['200' => ['description' => 'Permissions']],
+            ],
+        ];
+        $this->addStandardCrudRoutes($paths, 'roles', 'Rôles', 'Role', 'ROLE');
+        $paths['/roles/{id}/permissions'] = [
+            'put' => [
+                'tags' => ['Rôles'],
+                'summary' => 'Synchroniser les permissions du rôle [ROLE_UPDATE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/RoleSyncPermissionsRequest']]]],
+                'responses' => ['200' => ['description' => 'Permissions synchronisées']],
+            ],
+        ];
+
+        // 10. Utilisateurs
+        $this->addStandardCrudRoutes($paths, 'utilisateurs', 'Utilisateurs', 'Utilisateur', 'UTILISATEUR', 'UtilisateurCreateRequest');
+
+        // 11. Acquisitions
+        $this->addStandardCrudRoutes($paths, 'acquisitions', 'Acquisitions', 'Acquisition', 'ACQUISITION');
+
+        // 12. Livres & Exemplaires
+        $this->addStandardCrudRoutes($paths, 'livres', 'Livres', 'Livre', 'LIVRE');
+        $paths['/livres/{id}/exemplaires'] = [
+            'post' => [
+                'tags' => ['Livres'],
+                'summary' => 'Création en masse d\'exemplaires pour ce livre [EXEMPLAIRE_CREATE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ExemplaireBulkRequest']]]],
+                'responses' => ['201' => ['description' => 'Exemplaires créés']],
+            ],
+        ];
+
+        $this->addStandardCrudRoutes($paths, 'exemplaires', 'Exemplaires', 'Exemplaire', 'EXEMPLAIRE');
+        $paths['/exemplaires/bulk'] = [
+            'post' => [
+                'tags' => ['Exemplaires'],
+                'summary' => 'Génération d\'exemplaires en lot [EXEMPLAIRE_CREATE]',
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ExemplaireBulkRequest']]]],
+                'responses' => ['201' => ['description' => 'Lot créé']],
+            ],
+        ];
+
+        // 13. Usagers & UsagerSites
+        $this->addStandardCrudRoutes($paths, 'usagers', 'Usagers', 'Usager', 'USAGER', 'UsagerCreateRequest');
+        $this->addStandardCrudRoutes($paths, 'usager-sites', 'Usager-Sites (Adhésions)', 'UsagerSite', 'USAGERSITE');
+
+        // 14. Présences
+        $this->addStandardCrudRoutes($paths, 'presences', 'Présences', 'Presence', 'PRESENCE');
+
+        // 15. Opérations
+        $this->addStandardCrudRoutes($paths, 'operations', 'Opérations (Prêts & Consultations)', 'Operation', 'OPERATION', 'OperationCreateRequest');
+        $paths['/operations/{id}/retour'] = [
+            'post' => [
+                'tags' => ['Opérations (Prêts & Consultations)'],
+                'summary' => 'Clôturer un emprunt / retour d\'exemplaire [OPERATION_UPDATE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/OperationRetourRequest']]]],
+                'responses' => ['200' => ['description' => 'Retour enregistré']],
+            ],
+        ];
+
+        // 16. Réservations
+        $this->addStandardCrudRoutes($paths, 'reservations', 'Réservations', 'Reservation', 'RESERVATION');
+        $paths['/reservations/{id}/annuler'] = [
+            'post' => [
+                'tags' => ['Réservations'],
+                'summary' => 'Annuler une réservation active [RESERVATION_UPDATE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => ['200' => ['description' => 'Réservation annulée']],
+            ],
+        ];
+
+        // 17. Notifications
+        $this->addStandardCrudRoutes($paths, 'notifications', 'Notifications', 'Notification', 'NOTIFICATION');
+
+        // 18. Dashboard (Stage 8)
+        $paths['/dashboard'] = [
+            'get' => [
+                'tags' => ['Dashboard & Statistiques'],
+                'summary' => 'Statistiques consolidées et dynamiques du site [DASHBOARD_READ]',
+                'parameters' => [
+                    ['name' => 'date_debut', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'format' => 'date'], 'description' => 'Date début (AAAA-MM-JJ)'],
+                    ['name' => 'date_fin', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'format' => 'date'], 'description' => 'Date fin (AAAA-MM-JJ)'],
+                ],
+                'responses' => [
+                    '200' => [
+                        'description' => 'Métriques du tableau de bord',
+                        'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/DashboardMetrics']]],
+                    ],
+                    '403' => ['description' => 'Permission DASHBOARD_READ requise'],
+                ],
+            ],
+        ];
+
+        // 19. Journal d'Activités (Stage 8 - Immutable)
+        $paths['/journal-activites'] = [
+            'get' => [
+                'tags' => ['Journal d\'Activités'],
+                'summary' => 'Consultation paginée et filtrée des journaux d\'audit [JOURNAL_READ]',
+                'parameters' => [
+                    ['name' => 'search', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string']],
+                    ['name' => 'module', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string']],
+                    ['name' => 'action', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string']],
+                    ['name' => 'utilisateur_id', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'format' => 'uuid']],
+                    ['name' => 'date_debut', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'format' => 'date']],
+                    ['name' => 'date_fin', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string', 'format' => 'date']],
+                    ['name' => 'per_page', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'integer', 'default' => 15]],
+                ],
+                'responses' => ['200' => ['description' => 'Journal d\'activités']],
+            ],
+        ];
+        $paths['/journal-activites/{id}'] = [
+            'get' => [
+                'tags' => ['Journal d\'Activités'],
+                'summary' => 'Détail d\'un événement du journal [JOURNAL_READ]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => ['200' => ['description' => 'Détail log'], '404' => ['description' => 'Événement introuvable']],
+            ],
+        ];
+
+        // 20. Sauvegardes (Stage 8)
+        $paths['/sauvegardes'] = [
+            'get' => [
+                'tags' => ['Sauvegardes'],
+                'summary' => 'Inventaire des sauvegardes du site [SAUVEGARDE_READ]',
+                'responses' => ['200' => ['description' => 'Sauvegardes']],
+            ],
+        ];
+        $paths['/sauvegardes/{id}'] = [
+            'get' => [
+                'tags' => ['Sauvegardes'],
+                'summary' => 'Détail d\'une sauvegarde [SAUVEGARDE_READ]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => ['200' => ['description' => 'Détail sauvegarde'], '404' => ['description' => 'Introuvable']],
+            ],
+            'delete' => [
+                'tags' => ['Sauvegardes'],
+                'summary' => 'Suppression logique d\'une sauvegarde [SAUVEGARDE_DELETE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => ['200' => ['description' => 'Sauvegarde supprimée']],
+            ],
+        ];
+        $paths['/sauvegardes/{id}/restore'] = [
+            'post' => [
+                'tags' => ['Sauvegardes'],
+                'summary' => 'Restauration d\'une sauvegarde supprimée [SAUVEGARDE_DELETE]',
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => ['200' => ['description' => 'Sauvegarde restaurée']],
+            ],
+        ];
+
+        return $paths;
+    }
+
+    /**
+     * Helper to append CRUD paths for a standard resource.
+     */
+    private function addStandardCrudRoutes(array &$paths, string $endpoint, string $tag, string $schema, string $permPrefix, ?string $customRequest = null): void
+    {
+        $requestSchema = $customRequest ?? "{$schema}Request";
+
+        $paths["/{$endpoint}"] = [
+            'get' => [
+                'tags' => [$tag],
+                'summary' => "Liste paginée [{$permPrefix}_READ]",
+                'parameters' => [
+                    ['name' => 'search', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string']],
+                    ['name' => 'per_page', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'integer', 'default' => 15]],
+                    ['name' => 'page', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'integer', 'default' => 1]],
+                ],
+                'responses' => [
+                    '200' => [
+                        'description' => 'Liste paginée',
+                        'content' => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/PaginatedResponse']]],
+                    ],
+                ],
+            ],
+            'post' => [
+                'tags' => [$tag],
+                'summary' => "Création [{$permPrefix}_CREATE]",
+                'requestBody' => [
+                    'required' => true,
+                    'content' => ['application/json' => ['schema' => ['$ref' => "#/components/schemas/{$requestSchema}"]]],
+                ],
+                'responses' => [
+                    '201' => ['description' => 'Créé avec succès'],
+                    '422' => ['description' => 'Erreur de validation'],
+                ],
+            ],
+        ];
+
+        $paths["/{$endpoint}/{id}"] = [
+            'get' => [
+                'tags' => [$tag],
+                'summary' => "Détail [{$permPrefix}_READ]",
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => [
+                    '200' => ['description' => 'Détail de la ressource'],
+                    '404' => ['description' => 'Ressource introuvable pour ce site'],
+                ],
+            ],
+            'put' => [
+                'tags' => [$tag],
+                'summary' => "Mise à jour complète [{$permPrefix}_UPDATE]",
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'requestBody' => [
+                    'required' => true,
+                    'content' => ['application/json' => ['schema' => ['$ref' => "#/components/schemas/{$requestSchema}"]]],
+                ],
+                'responses' => [
+                    '200' => ['description' => 'Mis à jour avec succès'],
+                ],
+            ],
+            'patch' => [
+                'tags' => [$tag],
+                'summary' => "Mise à jour partielle [{$permPrefix}_UPDATE]",
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'requestBody' => [
+                    'required' => true,
+                    'content' => ['application/json' => ['schema' => ['$ref' => "#/components/schemas/{$requestSchema}"]]],
+                ],
+                'responses' => [
+                    '200' => ['description' => 'Mis à jour avec succès'],
+                ],
+            ],
+            'delete' => [
+                'tags' => [$tag],
+                'summary' => "Suppression logique [{$permPrefix}_DELETE]",
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => [
+                    '200' => ['description' => 'Supprimé avec succès'],
+                    '404' => ['description' => 'Ressource introuvable'],
+                ],
+            ],
+        ];
+
+        $paths["/{$endpoint}/{id}/restore"] = [
+            'post' => [
+                'tags' => [$tag],
+                'summary' => "Restauration [{$permPrefix}_UPDATE]",
+                'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid', 'example' => 'c6cc2b89-3f3e-48e1-b7a9-b29264b300a3']]],
+                'responses' => [
+                    '200' => ['description' => 'Restauré avec succès'],
+                ],
+            ],
+        ];
+    }
+}
