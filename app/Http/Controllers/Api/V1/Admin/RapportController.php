@@ -99,6 +99,24 @@ class RapportController extends BaseApiController
     }
 
     /**
+     * Export du Rapport des Livres les plus empruntés (PDF / XLSX / CSV).
+     */
+    public function exportTopLivres(ReportFilterRequest $request): Response
+    {
+        $siteId = $this->getSiteId($request);
+        $report = $this->reportService->getTopLivresReport($siteId, $request->validated());
+        $exportData = $this->exportService->formatTopLivresData($report);
+        $format = strtolower($request->query('format', 'xlsx'));
+        $filename = 'rapport_top_livres_' . date('Ymd_His');
+
+        return match ($format) {
+            'pdf' => $this->exportService->exportToPdf($filename, $exportData),
+            'csv' => $this->exportService->exportToCsv($filename, $exportData),
+            default => $this->exportService->exportToExcel($filename, $exportData),
+        };
+    }
+
+    /**
      * 4. Rapport des Retards d'emprunts avec tranches d'ancienneté (JSON).
      */
     public function retards(ReportFilterRequest $request): JsonResponse

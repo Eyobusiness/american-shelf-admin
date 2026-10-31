@@ -32,7 +32,7 @@ class UtilisateurController extends BaseApiController
         $perPage = (int) $request->query('per_page', 15);
         $filters = $request->only(['search', 'role_id', 'statut', 'sort_by', 'sort_direction']);
 
-        $utilisateurs = $this->utilisateurService->getAllPaginated($siteId, $filters, $perPage);
+        $utilisateurs = $this->utilisateurService->getAllPaginated($siteId, $filters, $perPage, $request->user());
 
         return $this->paginatedResponse($utilisateurs, UtilisateurResource::class, 'Utilisateurs récupérés avec succès.');
     }
@@ -40,7 +40,7 @@ class UtilisateurController extends BaseApiController
     public function show(Request $request, string $id): JsonResponse
     {
         $siteId = $this->getSiteId($request);
-        $user = $this->utilisateurService->findById($siteId, $id);
+        $user = $this->utilisateurService->findById($siteId, $id, false, $request->user());
 
         if (!$user) {
             return $this->errorResponse('Utilisateur introuvable.', Response::HTTP_NOT_FOUND);
@@ -52,7 +52,7 @@ class UtilisateurController extends BaseApiController
     public function store(StoreUtilisateurRequest $request): JsonResponse
     {
         $siteId = $this->getSiteId($request);
-        $user = $this->utilisateurService->create($siteId, $request->validated());
+        $user = $this->utilisateurService->create($siteId, $request->validated(), $request->user());
 
         return $this->successResponse(new UtilisateurResource($user), 'Utilisateur créé avec succès.', Response::HTTP_CREATED);
     }
@@ -60,13 +60,13 @@ class UtilisateurController extends BaseApiController
     public function update(UpdateUtilisateurRequest $request, string $id): JsonResponse
     {
         $siteId = $this->getSiteId($request);
-        $user = $this->utilisateurService->findById($siteId, $id);
+        $user = $this->utilisateurService->findById($siteId, $id, false, $request->user());
 
         if (!$user) {
             return $this->errorResponse('Utilisateur introuvable.', Response::HTTP_NOT_FOUND);
         }
 
-        $updated = $this->utilisateurService->update($user, $request->validated());
+        $updated = $this->utilisateurService->update($user, $request->validated(), $request->user());
 
         return $this->successResponse(new UtilisateurResource($updated), 'Utilisateur mis à jour avec succès.');
     }
@@ -74,14 +74,14 @@ class UtilisateurController extends BaseApiController
     public function destroy(Request $request, string $id): JsonResponse
     {
         $siteId = $this->getSiteId($request);
-        $user = $this->utilisateurService->findById($siteId, $id);
+        $user = $this->utilisateurService->findById($siteId, $id, false, $request->user());
 
         if (!$user) {
             return $this->errorResponse('Utilisateur introuvable.', Response::HTTP_NOT_FOUND);
         }
 
         $userId = $request->user()?->id;
-        $this->utilisateurService->delete($user, $userId);
+        $this->utilisateurService->delete($user, $userId, $request->user());
 
         return $this->successResponse(null, 'Utilisateur supprimé avec succès.');
     }

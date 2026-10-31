@@ -47,9 +47,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (AuthenticationException $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
+                $message = ($e->getMessage() && $e->getMessage() !== 'Unauthenticated.')
+                    ? $e->getMessage()
+                    : 'Non authentifié. Jeton manquant, invalide ou expiré.';
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'Non authentifié. Jeton manquant, invalide ou expiré.',
+                    'message' => $message,
                 ], 401);
             }
         });

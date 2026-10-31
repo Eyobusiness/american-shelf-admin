@@ -203,4 +203,131 @@ class AuthAdminTest extends TestCase
                 'message' => 'Déconnexion effectuée avec succès.',
             ]);
     }
+
+    /**
+     * Test login failure for a non-existent account.
+     */
+    public function test_admin_login_fails_with_non_existent_account(): void
+    {
+        $response = $this->postJson('/api/v1/auth/admin/login', [
+            'email' => 'inconnu@example.com',
+            'mot_de_passe' => 'Secret123!',
+        ]);
+
+        $response->assertStatus(401)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Identifiants de connexion invalides.',
+            ]);
+    }
+
+    /**
+     * Test login failure if site is inactive.
+     */
+    public function test_admin_login_fails_if_site_is_inactive(): void
+    {
+        $this->site->update(['statut' => 'INACTIF']);
+
+        $response = $this->postJson('/api/v1/auth/admin/login', [
+            'email' => 'admin.test@example.com',
+            'mot_de_passe' => 'Secret123!',
+        ]);
+
+        $response->assertStatus(401)
+            ->assertJson([
+                'success' => false,
+            ]);
+    }
+
+    /**
+     * Test login succeeds when explicit valid site_id is passed.
+     */
+    public function test_admin_can_login_with_valid_site_id(): void
+    {
+        $response = $this->postJson('/api/v1/auth/admin/login', [
+            'email' => 'admin.test@example.com',
+            'mot_de_passe' => 'Secret123!',
+            'site_id' => $this->site->id,
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+            ]);
+    }
+
+    /**
+     * Test login fails when mismatched site_id is passed (multi-tenant boundary check).
+     */
+    public function test_admin_login_fails_with_mismatched_site_id(): void
+    {
+        $otherSite = Site::create([
+            'code' => 'SITE-AUTRE-TEST',
+            'nom' => 'Autre Site',
+            'statut' => 'ACTIF',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/admin/login', [
+            'email' => 'admin.test@example.com',
+            'mot_de_passe' => 'Secret123!',
+            'site_id' => $otherSite->id,
+        ]);
+
+        $response->assertStatus(401)
+            ->assertJson([
+                'success' => false,
+            ]);
+    }
+
+    /**
+     * Test that UtilisateurResource serializes dates safely without crashing,
+     * including string dates, null dates, empty strings, and Carbon instances.
+     */
+    public function test_utilisateur_resource_safely_serializes_various_date_types(): void
+    {
+        $user = clone $this->utilisateur;
+
+        // 1. Avec dates nulles
+        $user->derniere_connexion = null;
+        $user->created_at = null;
+        $user->updated_at = null;
+        $resource = (new \App\Http\Resources\UtilisateurResource($user))->toArray(request());
+        $this->assertNull($resource['derniere_connexion']);
+        $this->assertNull($resource['created_at']);
+        $this->assertNull($resource['updated_at']);
+
+        // 2. Avec chaînes de caractères (format date SQL ou ISO)
+        $user->derniere_connexion = '2026-09-16 14:03:09';
+        $user->created_at = '2026-01-01T10:00:00Z';
+        $resource = (new \App\Http\Resources\UtilisateurResource($user))->toArray(request());
+        $this->assertIsString($resource['derniere_connexion']);
+        $this->assertStringContainsString('2026-09-16', $resource['derniere_connexion']);
+        $this->assertIsString($resource['created_at']);
+
+        // 3. Avec chaîne vide
+        $user->derniere_connexion = '';
+        $resource = (new \App\Http\Resources\UtilisateurResource($user))->toArray(request());
+        $this->assertNull($resource['derniere_connexion']);
+
+        // 4. Avec objets Carbon
+        $user->derniere_connexion = now();
+        $user->created_at = now()->subDays(5);
+        $resource = (new \App\Http\Resources\UtilisateurResource($user))->toArray(request());
+        $this->assertIsString($resource['derniere_connexion']);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $resource['derniere_connexion']);
+    }
+
+    /**
+     * Test that UtilisateurResource does not crash if site relation is null (super-admin case).
+     */
+    public function test_utilisateur_resource_handles_null_site_relation(): void
+    {
+        $user = clone $this->utilisateur;
+        $user->site_id = null;
+        $user->setRelation('site', null);
+
+        $resource = (new \App\Http\Resources\UtilisateurResource($user))->toArray(request());
+        $this->assertNull($resource['site']);
+    }
 }
+

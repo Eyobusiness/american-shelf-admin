@@ -27,9 +27,14 @@ class OperationResource extends JsonResource
             : null;
 
         $estEnRetard = false;
+        $retourneEnRetard = false;
         $joursRetard = 0;
 
-        if ($this->statut === 'EN_RETARD') {
+        if ($this->statut === 'RETOURNE' && $dateRetourEffective && $dateLimite && $dateRetourEffective->isAfter($dateLimite)) {
+            $retourneEnRetard = true;
+            $estEnRetard = true;
+            $joursRetard = max(0, (int) $dateRetourPrevue->diffInDays($dateRetourEffective, false));
+        } elseif ($this->statut === 'EN_RETARD') {
             $estEnRetard = true;
             if ($dateRetourPrevue) {
                 $refDate = $dateRetourEffective ?? $now;
@@ -53,6 +58,7 @@ class OperationResource extends JsonResource
             'statut' => $this->statut,
             'observations' => $this->observations,
             'est_en_retard' => $estEnRetard,
+            'retourne_en_retard' => $retourneEnRetard,
             'jours_retard' => $joursRetard,
             'usager' => $this->whenLoaded('usager', function () {
                 return [

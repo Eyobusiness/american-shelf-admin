@@ -138,6 +138,13 @@ class OperationService
                 ]);
             }
 
+            // Contrôle strict : Seul un adhérent avec statut valide peut effectuer un emprunt
+            if ($data['type'] === 'EMPRUNT' && strtoupper((string)$usagerSite->type) !== 'ADHERENT') {
+                throw ValidationException::withMessages([
+                    'usager_id' => ["Cet usager n'est pas autorisé à effectuer un emprunt. Il doit être enregistré comme adhérent pour bénéficier de ce service."],
+                ]);
+            }
+
             // 2. Verrouillage pessimiste de l'exemplaire sur ce site
             $exemplaire = Exemplaire::where('site_id', $siteId)
                 ->where('id', $data['exemplaire_id'])
@@ -159,9 +166,17 @@ class OperationService
             // 3. Récupérer et figer la configuration active du site
             $config = $this->configurationService->getForSite($siteId);
 
-            $dateOperation = !empty($data['date_operation'])
-                ? Carbon::parse($data['date_operation'])
-                : now();
+            $now = now();
+            if (!empty($data['date_operation'])) {
+                $parsedDate = Carbon::parse($data['date_operation']);
+                if ($parsedDate->format('H:i:s') === '00:00:00' && $parsedDate->isSameDay($now)) {
+                    $dateOperation = $parsedDate->setTime($now->hour, $now->minute, $now->second);
+                } else {
+                    $dateOperation = $parsedDate;
+                }
+            } else {
+                $dateOperation = $now;
+            }
 
             if ($data['type'] === 'EMPRUNT') {
                 // 4. Contrôle du quota maximal d'emprunts en cours
@@ -236,7 +251,8 @@ class OperationService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if ($operation->statut !== 'EN_COURS') {
+            // Autoriser le retour même si la date est dépassée ou si le statut est déjà EN_RETARD
+            if (!in_array($operation->statut, ['EN_COURS', 'EN_RETARD'], true)) {
                 throw ValidationException::withMessages([
                     'statut' => ["Cette opération est déjà clôturée avec le statut {$operation->statut}."],
                 ]);
@@ -248,9 +264,17 @@ class OperationService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $dateRetourEffective = !empty($data['date_retour_effective'])
-                ? Carbon::parse($data['date_retour_effective'])
-                : now();
+            $now = now();
+            if (!empty($data['date_retour_effective'])) {
+                $parsedRetour = Carbon::parse($data['date_retour_effective']);
+                if ($parsedRetour->format('H:i:s') === '00:00:00' && $parsedRetour->isSameDay($now)) {
+                    $dateRetourEffective = $parsedRetour->setTime($now->hour, $now->minute, $now->second);
+                } else {
+                    $dateRetourEffective = $parsedRetour;
+                }
+            } else {
+                $dateRetourEffective = $now;
+            }
 
             // 3. Calcul de retard avec jours de grâce
             $graceDays = (int) ($operation->configuration?->nombre_jours_grace ?? 0);
@@ -284,7 +308,9 @@ class OperationService
                     $operation->id
                 );
             } else {
-                $finalStatut = $isLate ? 'EN_RETARD' : 'RETOURNE';
+                // Règle métier impérative : Le retour met TOUJOURS le statut à RETOURNE,
+                // un retard éventuel est signalé et tracé mais ne bloque jamais la restitution.
+                $finalStatut = 'RETOURNE';
                 $exemplaireUpdates = ['statut' => 'DISPONIBLE'];
                 if (!empty($etatExemplaire)) {
                     $exemplaireUpdates['etat'] = $etatExemplaire;
@@ -305,6 +331,10 @@ class OperationService
 
             // 5. Mise à jour de l'opération
             $observations = $operation->observations;
+            if ($isLate) {
+                $retardNotice = '[RETOUR EN RETARD]';
+                $observations = $observations ? "{$observations} | {$retardNotice}" : $retardNotice;
+            }
             if (!empty($data['observations'])) {
                 $observations = $observations
                     ? $observations . ' | Clôture: ' . $data['observations']

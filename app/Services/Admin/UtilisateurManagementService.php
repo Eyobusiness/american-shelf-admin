@@ -7,14 +7,22 @@ use App\Models\Utilisateur;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 class UtilisateurManagementService
 {
-    public function getAllPaginated(string $siteId, array $filters = [], int $perPage = 15): LengthAwarePaginator
+    public function getAllPaginated(string $siteId, array $filters = [], int $perPage = 15, ?Utilisateur $currentUser = null): LengthAwarePaginator
     {
         $perPage = min(max($perPage, 1), 100);
         $query = Utilisateur::with(['role', 'site'])->where('site_id', $siteId);
+
+        // Si l'utilisateur n'est pas SuperAdmin, masquer les comptes Super Administrateurs
+        if (!$currentUser || !$currentUser->isSuperAdmin()) {
+            $query->whereDoesntHave('role', function ($q) {
+                $q->where('code', 'SUPERADMIN');
+            });
+        }
 
         if (!empty($filters['role_id'])) {
             $query->where('role_id', $filters['role_id']);
@@ -41,18 +49,30 @@ class UtilisateurManagementService
         return $query->orderBy($sortBy, $sortDirection)->paginate($perPage);
     }
 
-    public function findById(string $siteId, string $id, bool $withTrashed = false): ?Utilisateur
+    public function findById(string $siteId, string $id, bool $withTrashed = false, ?Utilisateur $currentUser = null): ?Utilisateur
     {
         $query = $withTrashed ? Utilisateur::withTrashed() : Utilisateur::query();
-        return $query->with(['role', 'site'])->where('site_id', $siteId)->where('id', $id)->first();
+        $user = $query->with(['role', 'site'])->where('site_id', $siteId)->where('id', $id)->first();
+
+        // Les administrateurs ordinaires ne peuvent pas consulter le profil Super Admin
+        if ($user && $user->isSuperAdmin() && (!$currentUser || !$currentUser->isSuperAdmin())) {
+            return null;
+        }
+
+        return $user;
     }
 
-    public function create(string $siteId, array $data): Utilisateur
+    public function create(string $siteId, array $data, ?Utilisateur $currentUser = null): Utilisateur
     {
         // Validation stricte : le rôle doit appartenir au même site
         $role = Role::where('site_id', $siteId)->where('id', $data['role_id'])->first();
         if (!$role) {
             throw new UnprocessableEntityHttpException('Le rôle sélectionné n\'appartient pas à ce site.');
+        }
+
+        // Interdiction d'attribuer le rôle Super Admin pour les administrateurs ordinaires
+        if ($role->code === 'SUPERADMIN' && (!$currentUser || !$currentUser->isSuperAdmin())) {
+            throw new AccessDeniedHttpException('Attribution du rôle Super Administrateur non autorisée.');
         }
 
         $data['site_id'] = $siteId;
@@ -64,13 +84,21 @@ class UtilisateurManagementService
         });
     }
 
-    public function update(Utilisateur $user, array $data): Utilisateur
+    public function update(Utilisateur $user, array $data, ?Utilisateur $currentUser = null): Utilisateur
     {
+        // Interdiction pour les administrateurs ordinaires de modifier un Super Admin
+        if ($user->isSuperAdmin() && (!$currentUser || !$currentUser->isSuperAdmin())) {
+            throw new AccessDeniedHttpException('Action non autorisée sur un compte Super Administrateur.');
+        }
+
         // Validation si le rôle est mis à jour
         if (!empty($data['role_id']) && (string) $data['role_id'] !== (string) $user->role_id) {
             $role = Role::where('site_id', $user->site_id)->where('id', $data['role_id'])->first();
             if (!$role) {
                 throw new UnprocessableEntityHttpException('Le rôle sélectionné n\'appartient pas à ce site.');
+            }
+            if ($role->code === 'SUPERADMIN' && (!$currentUser || !$currentUser->isSuperAdmin())) {
+                throw new AccessDeniedHttpException('Attribution du rôle Super Administrateur non autorisée.');
             }
         }
 
@@ -87,8 +115,12 @@ class UtilisateurManagementService
         });
     }
 
-    public function delete(Utilisateur $user, ?string $deletedById = null): bool
+    public function delete(Utilisateur $user, ?string $deletedById = null, ?Utilisateur $currentUser = null): bool
     {
+        if ($user->isSuperAdmin() && (!$currentUser || !$currentUser->isSuperAdmin())) {
+            throw new AccessDeniedHttpException('Suppression du compte Super Administrateur non autorisée.');
+        }
+
         if ($deletedById) {
             $user->deleted_by = $deletedById;
             $user->save();

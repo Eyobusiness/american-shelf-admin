@@ -21,8 +21,10 @@ class ExportService
     public function exportToPdf(string $filename, array $viewData): Response
     {
         $pdf = Pdf::loadView('reports.pdf', $viewData)
-            ->setPaper('a4', 'portrait')
-            ->setOption('isRemoteEnabled', false);
+            ->setPaper('a4', 'landscape')
+            ->setOption('isRemoteEnabled', false)
+            ->setOption('defaultFont', 'Helvetica')
+            ->setOption('isHtml5ParserEnabled', true);
 
         return response($pdf->output(), 200, [
             'Content-Type' => 'application/pdf',
@@ -373,6 +375,49 @@ class ExportService
                 [
                     'titre' => 'Historique des Snapshots d\'Inventaire',
                     'headers' => ['Date', 'Livres', 'Exemplaires', 'Disponibles', 'Empruntés', 'Consultation', 'Réservés', 'Indisponibles', 'Perdus'],
+                    'rows' => $rows,
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Convertit le rapport Classement Top Livres en structure exportable.
+     */
+    public function formatTopLivresData(array $report): array
+    {
+        $ranking = $report['top_livres'] ?? $report['classement'] ?? [];
+        $totalEmprunts = array_sum(array_column($ranking, 'nombre_emprunts'));
+
+        $kpis = [
+            'Livres classés' => count($ranking),
+            'Total des emprunts' => $totalEmprunts,
+        ];
+
+        $rows = [];
+        foreach ($ranking as $item) {
+            $rows[] = [
+                $item['rang'] ?? '',
+                $item['code'] ?? '',
+                $item['titre'] ?? '',
+                $item['auteur'] ?? '',
+                $item['isbn'] ?? '—',
+                $item['categorie'] ?? 'Sans catégorie',
+                $item['nombre_emprunts'] ?? 0,
+                $item['total_exemplaires'] ?? 0,
+            ];
+        }
+
+        return [
+            'titre' => 'Classement des Livres les Plus Empruntés',
+            'site_nom' => $report['site']['nom'] ?? 'Site',
+            'periode' => !empty($report['periode']['date_debut']) ? "Du {$report['periode']['date_debut']} au {$report['periode']['date_fin']}" : null,
+            'date_generation' => now()->toDateTimeString(),
+            'kpis' => $kpis,
+            'tables' => [
+                [
+                    'titre' => 'Top des Ouvrages',
+                    'headers' => ['Rang', 'Code', 'Titre', 'Auteur', 'ISBN', 'Catégorie', 'Nb Emprunts', 'Total Exemplaires'],
                     'rows' => $rows,
                 ],
             ],

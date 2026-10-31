@@ -15,17 +15,19 @@ class MenuSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Détacher les références de menus dans la table permissions si existantes
-        DB::table('permissions')->update([
-            'menu_id' => null,
-            'sous_menu_id' => null,
-        ]);
+        // 1. Detacher les references de menus dans la table permissions si existantes
+        if (DB::getSchemaBuilder()->hasColumn('permissions', 'menu_id')) {
+            DB::table('permissions')->update([
+                'menu_id' => null,
+                'sous_menu_id' => null,
+            ]);
+        }
 
-        // 2. Vider tous les sous-menus et menus existants (suppression définitive)
+        // 2. Vider tous les sous-menus et menus existants (suppression definitive)
         SousMenu::query()->forceDelete();
         Menu::query()->forceDelete();
 
-        // 3. Définition exacte des menus et sous-menus demandés
+        // 3. Definition exacte des menus et sous-menus
         $menuTree = [
             [
                 'order' => 1,
@@ -83,7 +85,7 @@ class MenuSeeder extends Seeder
             [
                 'order' => 3,
                 'code' => '300',
-                'libelle' => 'Usagers',
+                'libelle' => 'Usagers & Adhérents',
                 'icon' => 'bi bi-people',
                 'path' => '#',
                 'permission' => '1,2,3,4',
@@ -113,7 +115,7 @@ class MenuSeeder extends Seeder
                     [
                         'order' => 3,
                         'code' => '303',
-                        'libelle' => 'Présences',
+                        'libelle' => 'Pointage des Présences',
                         'icon' => 'bi bi-calendar-check',
                         'path' => '/usagers/presences',
                         'permission' => null,
@@ -145,7 +147,7 @@ class MenuSeeder extends Seeder
                     [
                         'order' => 2,
                         'code' => '402',
-                        'libelle' => 'Consultations',
+                        'libelle' => 'Consultations sur place',
                         'icon' => 'bi bi-eye',
                         'path' => '/activites/consultations',
                         'permission' => null,
@@ -155,7 +157,7 @@ class MenuSeeder extends Seeder
                     [
                         'order' => 3,
                         'code' => '403',
-                        'libelle' => 'Réservations',
+                        'libelle' => 'Réservations d\'ouvrages',
                         'icon' => 'bi bi-bookmark-check',
                         'path' => '/activites/reservations',
                         'permission' => null,
@@ -166,6 +168,88 @@ class MenuSeeder extends Seeder
             ],
             [
                 'order' => 5,
+                'code' => '700',
+                'libelle' => 'Rapports & Éditions',
+                'icon' => 'bi bi-graph-up-arrow',
+                'path' => '#',
+                'permission' => '1,2,3,4',
+                'reference' => 'main_rapports',
+                'statut' => 'ACTIF',
+                'sousMenus' => [
+                    [
+                        'order' => 1,
+                        'code' => '701',
+                        'libelle' => 'Fonds documentaire',
+                        'icon' => 'bi bi-collection',
+                        'path' => '/rapports/fonds-documentaire',
+                        'permission' => 'RAPPORT_READ',
+                        'reference' => 'rapports_fonds',
+                        'statut' => 'ACTIF',
+                    ],
+                    [
+                        'order' => 2,
+                        'code' => '702',
+                        'libelle' => 'Emprunts & Retours',
+                        'icon' => 'bi bi-arrow-left-right',
+                        'path' => '/rapports/emprunts',
+                        'permission' => 'RAPPORT_READ',
+                        'reference' => 'rapports_emprunts',
+                        'statut' => 'ACTIF',
+                    ],
+                    [
+                        'order' => 3,
+                        'code' => '703',
+                        'libelle' => 'Top Livres',
+                        'icon' => 'bi bi-trophy',
+                        'path' => '/rapports/top-livres',
+                        'permission' => 'RAPPORT_READ',
+                        'reference' => 'rapports_top_livres',
+                        'statut' => 'ACTIF',
+                    ],
+                    [
+                        'order' => 4,
+                        'code' => '704',
+                        'libelle' => 'Retards & Relances',
+                        'icon' => 'bi bi-exclamation-triangle',
+                        'path' => '/rapports/retards',
+                        'permission' => 'RAPPORT_READ',
+                        'reference' => 'rapports_retards',
+                        'statut' => 'ACTIF',
+                    ],
+                    [
+                        'order' => 5,
+                        'code' => '705',
+                        'libelle' => 'Fréquentation',
+                        'icon' => 'bi bi-calendar2-week',
+                        'path' => '/rapports/frequentation',
+                        'permission' => 'RAPPORT_READ',
+                        'reference' => 'rapports_frequentation',
+                        'statut' => 'ACTIF',
+                    ],
+                    [
+                        'order' => 6,
+                        'code' => '706',
+                        'libelle' => 'Acquisitions & Entrées',
+                        'icon' => 'bi bi-box-seam',
+                        'path' => '/rapports/acquisitions',
+                        'permission' => 'RAPPORT_READ',
+                        'reference' => 'rapports_acquisitions',
+                        'statut' => 'ACTIF',
+                    ],
+                    [
+                        'order' => 7,
+                        'code' => '707',
+                        'libelle' => 'Inventaire & Clôture',
+                        'icon' => 'bi bi-clipboard2-check',
+                        'path' => '/rapports/inventaire',
+                        'permission' => 'RAPPORT_READ',
+                        'reference' => 'rapports_inventaire',
+                        'statut' => 'ACTIF',
+                    ],
+                ],
+            ],
+            [
+                'order' => 6,
                 'code' => '500',
                 'libelle' => 'Administration',
                 'icon' => 'bi bi-shield-lock',
@@ -177,7 +261,7 @@ class MenuSeeder extends Seeder
                     [
                         'order' => 1,
                         'code' => '501',
-                        'libelle' => 'Utilisateurs',
+                        'libelle' => 'Utilisateurs administratifs',
                         'icon' => 'bi bi-person-gear',
                         'path' => '/admin/utilisateurs',
                         'permission' => null,
@@ -187,7 +271,7 @@ class MenuSeeder extends Seeder
                     [
                         'order' => 2,
                         'code' => '502',
-                        'libelle' => 'Rôles & permissions',
+                        'libelle' => 'Rôles & Permissions',
                         'icon' => 'bi bi-shield-check',
                         'path' => '/admin/roles-permissions',
                         'permission' => null,
@@ -197,17 +281,7 @@ class MenuSeeder extends Seeder
                     [
                         'order' => 3,
                         'code' => '503',
-                        'libelle' => 'Menus',
-                        'icon' => 'bi bi-list-ul',
-                        'path' => '/admin/menus',
-                        'permission' => null,
-                        'reference' => 'menus',
-                        'statut' => 'ACTIF',
-                    ],
-                    [
-                        'order' => 4,
-                        'code' => '504',
-                        'libelle' => 'Configuration',
+                        'libelle' => 'Configuration du site',
                         'icon' => 'bi bi-gear',
                         'path' => '/admin/configuration',
                         'permission' => null,
@@ -217,9 +291,9 @@ class MenuSeeder extends Seeder
                 ],
             ],
             [
-                'order' => 6,
+                'order' => 7,
                 'code' => '600',
-                'libelle' => 'Système',
+                'libelle' => 'Système & Maintenance',
                 'icon' => 'bi bi-sliders',
                 'path' => '#',
                 'permission' => '1,2,3,4',
@@ -229,7 +303,7 @@ class MenuSeeder extends Seeder
                     [
                         'order' => 1,
                         'code' => '601',
-                        'libelle' => 'Notifications',
+                        'libelle' => 'Centre de Notifications',
                         'icon' => 'bi bi-bell',
                         'path' => '/systeme/notifications',
                         'permission' => null,
@@ -239,7 +313,7 @@ class MenuSeeder extends Seeder
                     [
                         'order' => 2,
                         'code' => '602',
-                        'libelle' => 'Journal d\'activité',
+                        'libelle' => 'Journal d\'Activité',
                         'icon' => 'bi bi-journal-text',
                         'path' => '/systeme/journal',
                         'permission' => null,
@@ -249,7 +323,7 @@ class MenuSeeder extends Seeder
                     [
                         'order' => 3,
                         'code' => '603',
-                        'libelle' => 'Sauvegardes',
+                        'libelle' => 'Sauvegardes de la BD',
                         'icon' => 'bi bi-database-check',
                         'path' => '/systeme/sauvegardes',
                         'permission' => null,
@@ -265,7 +339,7 @@ class MenuSeeder extends Seeder
         if ($sites->isEmpty()) {
             $sites = collect([
                 Site::firstOrCreate(
-                    ['code' => 'ASA'],
+                    ['code' => 'ASA-ABOBO'],
                     ['nom' => 'American Shelf Abobo', 'statut' => 'ACTIF']
                 ),
             ]);

@@ -39,8 +39,19 @@ class Utilisateur extends Authenticatable implements JWTSubject
     {
         return [
             'derniere_connexion' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+            'deleted_at' => 'datetime',
             'mot_de_passe' => 'hashed',
         ];
+    }
+
+    /**
+     * Mutateur pour derniere_connexion évitant que les chaînes vides ne soient converties en timestamp actuel.
+     */
+    public function setDerniereConnexionAttribute(mixed $value): void
+    {
+        $this->attributes['derniere_connexion'] = ($value === '' || $value === null) ? null : $value;
     }
 
     /**
@@ -85,5 +96,13 @@ class Utilisateur extends Authenticatable implements JWTSubject
     public function journauxActivites(): HasMany
     {
         return $this->hasMany(JournalActivite::class, 'utilisateur_id');
+    }
+
+    /**
+     * Vérifie si l'utilisateur possède le rôle Super Administrateur.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return strtoupper($this->role?->code ?? '') === 'SUPERADMIN';
     }
 }

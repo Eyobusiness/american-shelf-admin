@@ -33,7 +33,7 @@ class RoleController extends BaseApiController
         $perPage = (int) $request->query('per_page', 15);
         $filters = $request->only(['search', 'statut', 'sort_by', 'sort_direction']);
 
-        $roles = $this->roleService->getAllPaginated($siteId, $filters, $perPage);
+        $roles = $this->roleService->getAllPaginated($siteId, $filters, $perPage, $request->user());
 
         return $this->paginatedResponse($roles, RoleResource::class, 'Rôles récupérés avec succès.');
     }
@@ -41,7 +41,7 @@ class RoleController extends BaseApiController
     public function show(Request $request, string $id): JsonResponse
     {
         $siteId = $this->getSiteId($request);
-        $role = $this->roleService->findById($siteId, $id);
+        $role = $this->roleService->findById($siteId, $id, false, $request->user());
 
         if (!$role) {
             return $this->errorResponse('Rôle introuvable.', Response::HTTP_NOT_FOUND);
@@ -53,7 +53,7 @@ class RoleController extends BaseApiController
     public function store(StoreRoleRequest $request): JsonResponse
     {
         $siteId = $this->getSiteId($request);
-        $role = $this->roleService->create($siteId, $request->validated());
+        $role = $this->roleService->create($siteId, $request->validated(), $request->user());
 
         return $this->successResponse(new RoleResource($role), 'Rôle créé avec succès.', Response::HTTP_CREATED);
     }
@@ -61,13 +61,13 @@ class RoleController extends BaseApiController
     public function update(UpdateRoleRequest $request, string $id): JsonResponse
     {
         $siteId = $this->getSiteId($request);
-        $role = $this->roleService->findById($siteId, $id);
+        $role = $this->roleService->findById($siteId, $id, false, $request->user());
 
         if (!$role) {
             return $this->errorResponse('Rôle introuvable.', Response::HTTP_NOT_FOUND);
         }
 
-        $updated = $this->roleService->update($role, $request->validated());
+        $updated = $this->roleService->update($role, $request->validated(), $request->user());
 
         return $this->successResponse(new RoleResource($updated), 'Rôle mis à jour avec succès.');
     }
@@ -75,14 +75,14 @@ class RoleController extends BaseApiController
     public function destroy(Request $request, string $id): JsonResponse
     {
         $siteId = $this->getSiteId($request);
-        $role = $this->roleService->findById($siteId, $id);
+        $role = $this->roleService->findById($siteId, $id, false, $request->user());
 
         if (!$role) {
             return $this->errorResponse('Rôle introuvable.', Response::HTTP_NOT_FOUND);
         }
 
         $userId = $request->user()?->id;
-        $this->roleService->delete($role, $userId);
+        $this->roleService->delete($role, $userId, $request->user());
 
         return $this->successResponse(null, 'Rôle supprimé avec succès.');
     }

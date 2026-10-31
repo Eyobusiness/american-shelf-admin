@@ -460,6 +460,7 @@ class ReportService
             ],
             'limite' => $limit,
             'total_livres_classes' => count($ranking),
+            'top_livres' => $ranking,
             'classement' => $ranking,
         ];
     }

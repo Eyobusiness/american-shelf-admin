@@ -4,86 +4,115 @@
     <meta charset="UTF-8">
     <title>{{ $titre }} - American Shelf</title>
     <style>
+        @page {
+            size: a4 landscape;
+            margin: 10mm 12mm 14mm 12mm;
+        }
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            font-size: 11px;
-            color: #333333;
-            margin: 20px;
-            line-height: 1.4;
+            font-size: 10px;
+            color: #1e293b;
+            margin: 0;
+            padding: 0;
+            line-height: 1.35;
         }
         .header {
-            border-bottom: 2px solid #1e3a8a;
-            padding-bottom: 12px;
-            margin-bottom: 20px;
+            border-bottom: 2.5px solid #1e3a8a;
+            padding-bottom: 8px;
+            margin-bottom: 14px;
         }
         .header table {
             width: 100%;
+            border-collapse: collapse;
         }
         .logo-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: #1e3a8a;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         .meta-info {
             text-align: right;
-            font-size: 10px;
-            color: #64748b;
+            font-size: 9px;
+            color: #475569;
+            line-height: 1.4;
         }
         .report-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: #0f172a;
-            margin-top: 5px;
+            margin-top: 3px;
         }
         .section-title {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
             color: #1e3a8a;
-            border-bottom: 1px solid #cbd5e1;
-            padding-bottom: 4px;
-            margin-top: 20px;
-            margin-bottom: 10px;
+            border-bottom: 1.5px solid #cbd5e1;
+            padding-bottom: 3px;
+            margin-top: 14px;
+            margin-bottom: 8px;
             text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
         .kpi-container {
             width: 100%;
-            margin-bottom: 15px;
+            border-collapse: separate;
+            border-spacing: 6px 0;
+            margin-bottom: 12px;
         }
         .kpi-box {
             background-color: #f8fafc;
-            border: 1px solid #e2e8f0;
-            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 6px 8px;
             text-align: center;
         }
         .kpi-value {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: #1e3a8a;
         }
         .kpi-label {
-            font-size: 9px;
+            font-size: 8.5px;
             color: #64748b;
             text-transform: uppercase;
+            font-weight: 600;
+            margin-top: 2px;
         }
         table.data-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
-            font-size: 10px;
+            margin-top: 6px;
+            margin-bottom: 14px;
+            font-size: 9px;
+            table-layout: auto;
+        }
+        table.data-table thead {
+            display: table-header-group;
+        }
+        table.data-table tr {
+            page-break-inside: avoid;
         }
         table.data-table th {
             background-color: #1e3a8a;
             color: #ffffff;
-            font-weight: 600;
+            font-weight: 700;
             text-align: left;
-            padding: 6px 8px;
+            padding: 5px 6px;
             border: 1px solid #1e3a8a;
+            font-size: 9px;
+            white-space: nowrap;
         }
         table.data-table td {
-            padding: 5px 8px;
+            padding: 4px 6px;
             border: 1px solid #e2e8f0;
-            vertical-align: top;
+            vertical-align: middle;
+            font-size: 8.5px;
+            word-wrap: break-word;
         }
         table.data-table tr:nth-child(even) td {
             background-color: #f8fafc;
@@ -93,17 +122,18 @@
             bottom: 0;
             left: 0;
             right: 0;
-            font-size: 9px;
+            font-size: 8.5px;
             color: #94a3b8;
             text-align: center;
             border-top: 1px solid #e2e8f0;
-            padding-top: 8px;
+            padding-top: 4px;
+            background-color: #ffffff;
         }
         .badge {
             display: inline-block;
             padding: 2px 5px;
             border-radius: 3px;
-            font-size: 9px;
+            font-size: 8px;
             font-weight: bold;
         }
         .badge-success { background: #dcfce7; color: #166534; }
@@ -111,6 +141,7 @@
         .badge-danger { background: #fee2e2; color: #991b1b; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
+        .nowrap { white-space: nowrap; }
     </style>
 </head>
 <body>

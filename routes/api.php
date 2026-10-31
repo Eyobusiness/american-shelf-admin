@@ -337,6 +337,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
             // 3. Livres les plus empruntés
             Route::get('/livres-plus-empruntes', [RapportController::class, 'topLivres'])->middleware('permission:RAPPORT_READ')->name('livres-plus-empruntes');
+            Route::get('/livres-plus-empruntes/export', [RapportController::class, 'exportTopLivres'])->middleware('permission:RAPPORT_EXPORT')->name('livres-plus-empruntes.export');
 
             // 4. Retards d'emprunts
             Route::get('/retards', [RapportController::class, 'retards'])->middleware('permission:RAPPORT_READ')->name('retards');

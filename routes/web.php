@@ -16,3 +16,16 @@ Route::get('/swagger', [DocumentationController::class, 'index'])->name('swagger
 Route::get('/docs/openapi.json', [DocumentationController::class, 'openapi'])->name('docs.openapi');
 Route::get('/docs/american-shelf.dto.ts', [DocumentationController::class, 'dto'])->name('docs.dto');
 
+// Route de secours pour servir les fichiers du storage public si le lien symbolique n'existe pas sur le serveur
+Route::get('/storage/{path}', function (string $path) {
+    /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+    $disk = \Illuminate\Support\Facades\Storage::disk('public');
+
+    if (! $disk->exists($path)) {
+        abort(404);
+    }
+
+    return $disk->response($path);
+})->where('path', '.*')->name('storage.serve');
+
+

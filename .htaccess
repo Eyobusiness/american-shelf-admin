@@ -1,0 +1,13 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. Servir directement les images et fichiers depuis storage/app/public/
+    # (Contourne l'absence de lien symbolique public/storage sur les serveurs mutualisés comme InfinityFree/cPanel)
+    RewriteCond %{REQUEST_URI} !storage/app/public/
+    RewriteRule ^(?:public/)?storage/(.*)$ storage/app/public/$1 [L]
+
+    # 2. Redirige toutes les autres requêtes du dossier admin vers le dossier public de Laravel
+    RewriteCond %{REQUEST_URI} !^/admin/public/
+    RewriteCond %{REQUEST_URI} !storage/app/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
